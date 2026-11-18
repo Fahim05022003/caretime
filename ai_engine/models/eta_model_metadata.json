@@ -1,0 +1,20 @@
+{
+  "model_type": "GradientBoostingRegressor",
+  "feature_names": [
+    "patients_ahead",
+    "doctor_baseline_mins",
+    "trailing_3_pace_mins",
+    "weighted_visit_units",
+    "doctor_delay_mins"
+  ],
+  "n_samples": 3000,
+  "validation_mae": 4.797,
+  "onnx_exported": true,
+  "feature_importances": [
+    0.04405353567609254,
+    0.049190942253929906,
+    0.13306558801238508,
+    0.7640278126974988,
+    0.009662121360093699
+  ]
+}

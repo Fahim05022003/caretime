@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareTime — Outpatient Queue & Digital Health Record Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Clean Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-sm">
+          CT
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-900 leading-tight" data-i18n="app_title">CareTime</h1>
+          <p class="text-xs text-slate-500 hidden sm:block" data-i18n="app_subtitle">Outpatient Queue & Digital Health Record Platform</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="langToggleBtn" class="min-h-[44px] px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded-md text-sm font-semibold text-slate-800 transition-colors">
+          বাংলা
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Login & Role Landing Container -->
+  <main class="flex-grow flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      
+      <!-- Primary Login Card -->
+      <div class="bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-sm">
+        <div class="text-center mb-6">
+          <h2 class="text-2xl font-bold text-slate-900" data-i18n="login_title">Patient & Staff Login</h2>
+          <p class="text-sm text-slate-600 mt-1" data-i18n="login_subtitle">Enter your registered mobile phone number to continue.</p>
+        </div>
+
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1.5" data-i18n="phone_label">Mobile Number</label>
+            <input type="tel" id="loginPhone" required placeholder="e.g. 01711223344" data-i18n-placeholder="phone_placeholder"
+              class="w-full min-h-[48px] px-3.5 border border-slate-300 rounded-lg text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-white" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1.5" data-i18n="otp_label">4-Digit Verification Code (OTP)</label>
+            <input type="text" id="loginOtp" required value="1234" placeholder="Enter 1234 (Dev mode)" data-i18n-placeholder="otp_placeholder"
+              class="w-full min-h-[48px] px-3.5 border border-slate-300 rounded-lg text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 bg-white font-mono" />
+          </div>
+
+          <button type="submit" id="btnLogin"
+            class="w-full min-h-[48px] bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base rounded-lg transition-colors shadow-sm flex items-center justify-center">
+            <span data-i18n="btn_login">Sign In Securely</span>
+          </button>
+        </form>
+
+        <div id="loginFeedback" class="mt-4 text-center text-sm font-medium hidden"></div>
+      </div>
+
+      <!-- Quick Role Testing Bar (Instant Evaluator Access) -->
+      <div class="mt-8 bg-slate-100 border border-slate-200 rounded-xl p-5 shadow-sm text-center">
+        <h3 class="text-xs uppercase tracking-wider font-bold text-slate-600 mb-3" data-i18n="demo_bar_title">
+          Quick Role Testing (One-Click Instant Login)
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button type="button" onclick="quickLogin('patient')"
+            class="min-h-[48px] px-3 py-2 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-slate-800 hover:text-blue-700 font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center">
+            <span data-i18n="demo_patient">Demo Patient</span>
+          </button>
+
+          <button type="button" onclick="quickLogin('assistant')"
+            class="min-h-[48px] px-3 py-2 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-slate-800 hover:text-blue-700 font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center">
+            <span data-i18n="demo_assistant">Clinic Assistant</span>
+          </button>
+
+          <button type="button" onclick="quickLogin('doctor')"
+            class="min-h-[48px] px-3 py-2 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-slate-800 hover:text-blue-700 font-semibold text-sm rounded-lg shadow-sm transition-all flex items-center justify-center">
+            <span data-i18n="demo_doctor">Doctor Cockpit</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Clean Minimalist Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <p>CareTime Outpatient Platform &copy; 2026. Designed for effortless clinic visits.</p>
+  </footer>
+
+  <script src="/js/i18n.js"></script>
+  <script>
+    async function quickLogin(role) {
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ demoRole: role })
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          localStorage.setItem('caretime_user', JSON.stringify(data.user));
+          if (role === 'patient') window.location.href = '/patient.html';
+          else if (role === 'assistant') window.location.href = '/assistant.html';
+          else if (role === 'doctor') window.location.href = '/doctor.html';
+        } else {
+          alert('Demo login failed: ' + (data.error || 'User not found'));
+        }
+      } catch (err) {
+        alert('Login error: ' + err.message);
+      }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const phone = document.getElementById('loginPhone').value.trim();
+      const otp = document.getElementById('loginOtp').value.trim();
+      const feedback = document.getElementById('loginFeedback');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, otp, role: 'patient' })
+        });
+        const data = await res.json();
+
+        if (data.success && data.user) {
+          localStorage.setItem('caretime_user', JSON.stringify(data.user));
+          feedback.className = 'mt-4 text-center text-sm font-semibold text-green-700';
+          feedback.textContent = 'Login successful! Redirecting...';
+          feedback.classList.remove('hidden');
+
+          setTimeout(() => {
+            if (data.user.role === 'assistant') window.location.href = '/assistant.html';
+            else if (data.user.role === 'doctor') window.location.href = '/doctor.html';
+            else window.location.href = '/patient.html';
+          }, 600);
+        } else {
+          feedback.className = 'mt-4 text-center text-sm font-semibold text-red-600';
+          feedback.textContent = data.error || 'Invalid credentials';
+          feedback.classList.remove('hidden');
+        }
+      } catch (err) {
+        feedback.className = 'mt-4 text-center text-sm font-semibold text-red-600';
+        feedback.textContent = 'Server connection error.';
+        feedback.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

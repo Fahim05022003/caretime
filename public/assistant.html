@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareTime — Clinic Assistant Operations Console</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Clean Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-sm">
+          CT
+        </a>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight" data-i18n="assistant_title">Clinic Assistant Console</h1>
+          <p class="text-xs text-slate-500" data-i18n="assistant_subtitle">Compounder / Reception Outpatient Queue Control</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button id="langToggleBtn" class="min-h-[44px] px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded-md text-sm font-semibold text-slate-800 transition-colors">
+          বাংলা
+        </button>
+        <a href="/" class="min-h-[44px] px-3 py-2 text-slate-500 hover:text-slate-800 text-sm font-medium flex items-center">
+          <span data-i18n="btn_logout">Logout</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Assistant Console Layout -->
+  <main class="flex-grow max-w-6xl mx-auto px-4 py-6 w-full space-y-6">
+
+    <!-- Top Status Strip -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div class="border-r border-slate-100 pr-2">
+        <span class="text-xs uppercase font-bold text-slate-500 block" data-i18n="session_doctor">Consulting Doctor</span>
+        <span class="text-base font-bold text-slate-900 mt-1 block">Dr. Mahmudul Hasan</span>
+        <span class="text-xs text-green-700 font-semibold flex items-center gap-1.5 mt-0.5">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span> Session Active
+        </span>
+      </div>
+
+      <div class="border-r border-slate-100 pr-2">
+        <span class="text-xs uppercase font-bold text-slate-500 block" data-i18n="now_serving">Now Serving Token</span>
+        <span id="assistantCurrentToken" class="text-3xl font-black text-blue-600 font-mono mt-1 block">#00</span>
+      </div>
+
+      <div class="border-r border-slate-100 pr-2">
+        <span class="text-xs uppercase font-bold text-slate-500 block" data-i18n="current_pace">Current Pace</span>
+        <span id="assistantPaceDisplay" class="text-xl font-bold text-slate-900 mt-1 block">10.0 mins/pt</span>
+        <span class="text-xs text-slate-500">Rolling 3-pt average</span>
+      </div>
+
+      <div>
+        <span class="text-xs uppercase font-bold text-slate-500 block">Doctor Delay Offset</span>
+        <span id="assistantDelayDisplay" class="text-xl font-bold text-amber-700 mt-1 block">0 mins</span>
+        <span class="text-xs text-slate-500">Auto shifts all ETAs</span>
+      </div>
+    </section>
+
+    <!-- In-Chamber Live Banner -->
+    <div id="assistantInChamberCard"></div>
+
+    <!-- PRIMARY ACTION CONTROL PANEL (Large 64px Touch-Target Buttons) -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Button 1: Call Next -->
+      <button type="button" id="btnCallNext"
+        class="h-16 px-6 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-lg rounded-xl shadow-sm transition-all flex items-center justify-center gap-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+        </svg>
+        <span data-i18n="btn_call_next">CALL NEXT PATIENT</span>
+      </button>
+
+      <!-- Button 2: Mark Consultation Complete -->
+      <button type="button" id="btnCompleteCurrent"
+        class="h-16 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold text-lg rounded-xl shadow-sm transition-all flex items-center justify-center gap-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span data-i18n="btn_complete">MARK CONSULTATION COMPLETE</span>
+      </button>
+
+      <!-- Button 3: Add Doctor Delay (+15 mins) -->
+      <button type="button" id="btnAddDelay"
+        class="h-16 px-6 bg-slate-800 hover:bg-slate-900 active:bg-slate-950 text-white font-bold text-base sm:text-lg rounded-xl shadow-sm transition-all flex items-center justify-center gap-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span data-i18n="btn_add_delay">+15 MIN DOCTOR DELAY</span>
+      </button>
+    </section>
+
+    <!-- LIVE QUEUE WAITING LIST TABLE -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
+      <div class="flex justify-between items-center pb-4 mb-4 border-b border-slate-100">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900">Waiting Room Patients</h2>
+          <p class="text-sm text-slate-500">Organized by emergency triage and queue sequence number.</p>
+        </div>
+        <div class="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-700 rounded-full border border-slate-200">
+          Auto-Recalculating ETAs
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+              <th class="p-3" data-i18n="table_serial">Token #</th>
+              <th class="p-3" data-i18n="table_patient">Patient Name</th>
+              <th class="p-3" data-i18n="table_type">Visit Type</th>
+              <th class="p-3" data-i18n="table_eta">Predicted Wait</th>
+              <th class="p-3" data-i18n="table_priority">Priority Action</th>
+            </tr>
+          </thead>
+          <tbody id="waitingQueueTableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyQueueNotice" class="hidden text-center py-10 text-slate-500">
+        <p class="text-base font-semibold" data-i18n="queue_empty">No patients waiting currently.</p>
+        <p class="text-xs text-slate-400 mt-1">All checked-in patients have been served.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Clean Minimalist Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <p>CareTime Outpatient Platform &copy; 2026. Compounder & Assistant Console.</p>
+  </footer>
+
+  <script src="/js/i18n.js"></script>
+  <script src="/js/assistant.js"></script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareTime — Patient Live Queue & Health Records</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased font-sans min-h-screen flex flex-col justify-between">
+
+  <!-- Top Navigation & Patient Profile Banner -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-sm">
+          CT
+        </a>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 id="patientNameDisplay" class="text-base sm:text-lg font-bold text-slate-900">Loading Patient...</h1>
+            <span id="patientPhidDisplay" class="px-2 py-0.5 text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-300 rounded">
+              CT-2026-XXXX
+            </span>
+          </div>
+          <p class="text-xs text-slate-500">Allergies: <span id="patientAllergiesDisplay" class="font-medium text-slate-700">None</span></p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button id="langToggleBtn" class="min-h-[44px] px-3 sm:px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 rounded-md text-sm font-semibold text-slate-800 transition-colors">
+          বাংলা
+        </button>
+        <a href="/" class="min-h-[44px] px-3 py-2 text-slate-500 hover:text-slate-800 text-sm font-medium flex items-center">
+          <span data-i18n="btn_logout">Logout</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Patient Dashboard Area -->
+  <main class="flex-grow max-w-5xl mx-auto px-4 py-6 w-full space-y-6">
+
+    <!-- Staged Commute Alert Notification Banner (Hidden by default, shown when 45 or 10 min ETA triggers) -->
+    <div id="stagedAlertBanner" class="hidden"></div>
+
+    <!-- CARD 1: Live Queue Status & Booking -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 sm:p-7 shadow-sm">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 mb-5 border-b border-slate-100">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900" data-i18n="patient_header">Live Queue Status</h2>
+          <p class="text-sm text-slate-500">Real-time AI wait predictions recalculated with every patient checkup.</p>
+        </div>
+        <div class="mt-2 sm:mt-0 flex items-center gap-2">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
+          <span class="text-xs font-semibold text-slate-600">Socket.io Live Sync</span>
+        </div>
+      </div>
+
+      <!-- Active Token Metrics Grid -->
+      <div id="activeTokenCard" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <!-- Metric 1: Now Serving -->
+        <div class="p-5 rounded-xl border border-slate-200 bg-slate-50 text-center">
+          <span class="text-xs uppercase tracking-wider font-bold text-slate-500" data-i18n="now_serving">Now Serving</span>
+          <div id="nowServingToken" class="text-4xl sm:text-5xl font-black text-slate-900 mt-2 font-mono">
+            #--
+          </div>
+          <span class="text-xs text-slate-500 mt-1 block">In Consultation Room</span>
+        </div>
+
+        <!-- Metric 2: Your Token -->
+        <div class="p-5 rounded-xl border border-blue-200 bg-blue-50/50 text-center">
+          <span class="text-xs uppercase tracking-wider font-bold text-blue-700" data-i18n="your_token">Your Token</span>
+          <div id="myTokenNumber" class="text-4xl sm:text-5xl font-black text-blue-600 mt-2 font-mono">
+            #--
+          </div>
+          <span class="text-xs text-blue-600 mt-1 block">Assigned Serial</span>
+        </div>
+
+        <!-- Metric 3: Estimated Wait Time -->
+        <div class="p-5 rounded-xl border border-amber-200 bg-amber-50/50 text-center">
+          <span class="text-xs uppercase tracking-wider font-bold text-amber-800" data-i18n="est_wait">Estimated Wait Time</span>
+          <div id="estWaitTime" class="text-3xl sm:text-4xl font-extrabold text-amber-900 mt-2">
+            --
+          </div>
+          <span class="text-xs text-amber-700 mt-1 block">Dynamic AI ONNX Estimate</span>
+        </div>
+      </div>
+
+      <!-- Token status or notice -->
+      <div id="queueStatusNotice" class="mb-4"></div>
+
+      <!-- Booking Box (Visible only if patient does NOT have an active token) -->
+      <div id="bookingBox" class="p-5 bg-slate-50 border border-slate-200 rounded-xl hidden">
+        <h3 class="font-bold text-slate-900 text-base mb-1" data-i18n="book_token_title">Book Clinic Serial Token</h3>
+        <p class="text-xs text-slate-600 mb-4">You do not have an active appointment token today. Select visit reason to join the queue.</p>
+        
+        <form id="bookingForm" class="space-y-4 max-w-md">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1" data-i18n="visit_type_label">Visit Reason</label>
+            <select id="visitTypeSelect" class="w-full min-h-[48px] px-3.5 border border-slate-300 rounded-lg text-base bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="New Checkup" data-i18n="visit_new">New Checkup</option>
+              <option value="Follow-up" data-i18n="visit_followup">Follow-up</option>
+              <option value="Report Show" data-i18n="visit_report">Report Show</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="isEmergencyCheckbox" class="w-5 h-5 text-red-600 border-slate-300 rounded focus:ring-red-500" />
+            <label for="isEmergencyCheckbox" class="text-sm font-semibold text-red-700">Medical Urgency / Severe Condition</label>
+          </div>
+
+          <button type="submit" id="btnBookToken"
+            class="min-h-[48px] px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center">
+            <span data-i18n="btn_book_token">Confirm & Get Serial Token</span>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- CARD 2: Digitize Lab Report (AI OCR) -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 sm:p-7 shadow-sm">
+      <div class="pb-4 mb-5 border-b border-slate-100">
+        <h2 class="text-xl font-bold text-slate-900" data-i18n="upload_report_title">Digitize Diagnostic Report (AI OCR)</h2>
+        <p class="text-sm text-slate-500" data-i18n="upload_report_sub">Upload phone photos or PDF lab slips for instant biomarker extraction.</p>
+      </div>
+
+      <form id="reportUploadForm" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1" data-i18n="report_title_label">Report Title / Lab Name</label>
+            <input type="text" id="reportTitleInput" placeholder="e.g. Fasting Glucose & Lipid Profile"
+              class="w-full min-h-[48px] px-3.5 border border-slate-300 rounded-lg text-base bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-800 mb-1" data-i18n="report_file_label">Select Document or Photo</label>
+            <input type="file" id="reportFileInput" accept="image/*,.pdf,.txt"
+              class="w-full min-h-[48px] px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+          </div>
+        </div>
+
+        <button type="submit" id="btnSubmitReport"
+          class="min-h-[48px] px-6 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center">
+          <span data-i18n="btn_upload_report">Upload & Extract Biomarkers</span>
+        </button>
+      </form>
+
+      <!-- OCR Loading Notice -->
+      <div id="ocrLoadingNotice" class="hidden mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-sm flex items-center gap-3">
+        <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+        </svg>
+        <span data-i18n="extracting_notice">AI is scanning and normalizing biomarkers...</span>
+      </div>
+
+      <!-- Instant Extracted Table -->
+      <div id="extractedReportResults" class="hidden mt-6 pt-5 border-t border-slate-200">
+        <h3 class="font-bold text-slate-900 text-base mb-2">Parsed Diagnostic Biomarkers</h3>
+        <p id="aiSummaryBox" class="text-sm text-slate-700 bg-slate-100 p-3 rounded-lg border border-slate-200 mb-4"></p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+                <th class="p-3" data-i18n="test_name">Test Name</th>
+                <th class="p-3" data-i18n="observed_val">Observed Value</th>
+                <th class="p-3" data-i18n="ref_range">Normal Range</th>
+                <th class="p-3" data-i18n="status_label">Clinical Flag</th>
+              </tr>
+            </thead>
+            <tbody id="biomarkersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARD 3: Past Prescriptions & Health Records -->
+    <section class="bg-white border border-slate-200 rounded-xl p-5 sm:p-7 shadow-sm">
+      <div class="pb-4 mb-4 border-b border-slate-100">
+        <h2 class="text-xl font-bold text-slate-900" data-i18n="past_records_title">Past Digital Health Records</h2>
+        <p class="text-sm text-slate-500">Chronological history of lab tests and previous doctor visits.</p>
+      </div>
+
+      <div id="pastRecordsList" class="space-y-3">
+        <p class="text-slate-500 text-sm italic" data-i18n="no_records_yet">Loading past medical history...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Clean Minimalist Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+    <p>CareTime Outpatient Platform &copy; 2026. Designed for effortless clinic visits.</p>
+  </footer>
+
+  <script src="/js/i18n.js"></script>
+  <script src="/js/patient.js"></script>
+</body>
+</html>
